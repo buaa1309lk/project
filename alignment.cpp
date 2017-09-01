@@ -1,15 +1,48 @@
 #include "alignment.h"
+int input(Mat img1, Mat img2, vector<Point2f> &kp1, vector<Point2f> &kp2, ifstream &a, ifstream &b)
+{
+	int m, n;
+	a >> m;
+	b >> n;
+	vector<KeyPoint> k;
+	vector<KeyPoint> p;
+	vector<DMatch> mp;
+	Mat c;
+	drawMatches(img1, k, img2, p, mp, c);
+
+	if (m != n)
+	{
+		cout << "input error" << endl;
+		return 0;
+	}
+	kp1.resize(m);
+	kp2.resize(m);
+	for (int i = 0; i < m; i++)
+	{
+		a >> kp1[i].x >> kp1[i].y;
+		b >> kp2[i].x >> kp2[i].y;
+		circle(c, kp1[i], 4, Scalar(0), 2, 8, 0);
+		circle(c, Point2f(kp2[i].x + img1.cols, kp2[i].y), 4, Scalar(0), 2, 8, 0);
+		if (i % 10 == 0)
+			line(c, kp1[i], Point2f(kp2[i].x + img1.cols, kp2[i].y), Scalar::all(-1));
+	}
+
+	imshow("c", c);
+	return 1;
+}
 
 //初步配准
 void preAlign(Mat &img1, Mat &img2, Mat &img1T, Mat &img2T, Mat &adjustHomo, Mat &transform, vector<KeyPoint> &feature1, vector<KeyPoint> &feature2)
 {
 	//特征点检测、匹配、过滤
 	vector<DMatch> inlierMatch;
-	featureProcess(img1, img2, 100.0, 30.0, feature1, feature2, inlierMatch);
+	featureProcess(img1, img2, 200.0, 10.0, feature1, feature2, inlierMatch);
 	Mat tmp;
 	drawMatches(img1, feature1, img2, feature2, inlierMatch, tmp);
 	imshow("RANSAC 过滤后的匹配特征点对", tmp);
 	homoTransform(img1, img2, feature1, feature2, inlierMatch, adjustHomo, transform, img1T, img2T);
+	//homoTransform(img2, img1, feature2, feature1, inlierMatch, adjustHomo, transform, img2T, img1T);
+
 	imshow("图一投影变换", img1T);
 	imshow("图二投影变换1", img2T);
 }
@@ -24,12 +57,12 @@ void preAlign3(
 	vector<DMatch> inlierMatchAB;
 	vector<KeyPoint> featureA;
 	vector<KeyPoint> featureB1;
-	featureProcess(img1, img2, 100.0, 10.0, featureA, featureB1, inlierMatchAB);
-	homoTransform(img1, img2, featureA, featureB1, inlierMatchAB, homoAB, transAB, imgA, imgB);
-	
+	featureProcess(img1, img2, 250.0, 10.0, featureA, featureB1, inlierMatchAB);
 	Mat tmp;
 	drawMatches(img1, featureA, img2, featureB1, inlierMatchAB, tmp);
 	imshow("RANSAC AB过滤后的匹配特征点对", tmp);
+
+	homoTransform(img1, img2, featureA, featureB1, inlierMatchAB, homoAB, transAB, imgA, imgB);
 	imshow("图一投影变换", imgA);
 	imshow("图二投影变换1", imgB);
 
@@ -38,14 +71,16 @@ void preAlign3(
 	vector<KeyPoint> featureB2;
 	vector<KeyPoint> featureC;
 	Mat imgB2;
-	featureProcess(img3, img2, 100.0, 10.0, featureC, featureB2, inlierMatchCB);
-	homoTransform(img3, img2, featureC, featureB2, inlierMatchCB, homoCB, transCB, imgC, imgB2);
-
+	featureProcess(img3, img2, 250.0, 10.0, featureC, featureB2, inlierMatchCB);
 	Mat tmp1;
 	drawMatches(img3, featureC, img2, featureB2, inlierMatchCB, tmp1);
-	imshow("RANSAC CB过滤后的匹配特征点对",tmp1);
+	imshow("RANSAC CB过滤后的匹配特征点对", tmp1);
+	
+
+	homoTransform(img3, img2, featureC, featureB2, inlierMatchCB, homoCB, transCB, imgC, imgB2);
 	imshow("图三投影变换", imgC);
 	imshow("图二投影变换2", imgB2);
+
 }
 
 //特征点聚类

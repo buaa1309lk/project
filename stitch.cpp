@@ -49,12 +49,15 @@ Mat lableStitch(Mat &img1T, Mat &img2T, Point2i pos, vector<Point2f> seamPoint, 
 	}
 
 	imshow("result", result);
-	string name = "stitch result with seam";
-	//imwrite("Data/result43-41-42.jpg", result);
+
 	Mat tmp = result.clone();
+
+
+
+
 	for (int i = 0; i < seamPoint.size(); i++)
-		circle(result, Point2f(seamPoint[i].y + pos.x, seamPoint[i].x), 0.5, Scalar(0), 2, 8, 0);
+		circle(result, Point2f(seamPoint[i].y + pos.x, seamPoint[i].x), 0.5, Scalar(100), 2, 8, 0);
 	imshow("stitch result with seam", result);
-		imwrite("Data/seamtmp.jpg", result);
+	imwrite("Data/seamtmp.jpg", result);
 	return result;
 }

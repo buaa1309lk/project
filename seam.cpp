@@ -29,12 +29,41 @@ Point2i findRegion(const Mat &a, const Mat &b)
 	position.x = position.x + 5;
 	return position;
 }
+
+Point2i findRegion(
+	const vector<KeyPoint> &feature1,
+	const vector<KeyPoint> &feature2,
+	const Mat &adjusthomo, const Mat &T)
+{
+	KeyPoint p1 = feature1[0];//图一变换后最左边的特征点
+	KeyPoint p2 = feature2[0];//图二变换后最右边的特征点
+	for (int i = 1; i < feature1.size(); i++)
+	{
+		p1 = feature1[i].pt.x < p1.pt.x ? feature1[i] : p1;
+		p2 = feature2[i].pt.x > p2.pt.x ? feature2[i] : p2;
+	}
+
+	Mat p3 = (Mat_<double>(3, 1) << p1.pt.x, p1.pt.y, 1.0);
+	Mat p4 = (Mat_<double>(3, 1) << p2.pt.x, p2.pt.y, 1.0);
+	p3 = adjusthomo*p3;
+	p4 = T*p4;
+
+	float x1 = p3.at<double>(0, 0) / p3.at<double>(2, 0);
+	float x2 = p4.at<double>(0, 0) / p4.at<double>(2, 0);
+
+	return Point2i(x1, x2);//返回两个点的x坐标，注意第二个点的横坐标还要经过变换。
+
+}
+
+
+
+
 //图像差值
 Mat absDiff(const Mat &region1, const Mat &region2)
 {
 	Mat region1G, region2G;
 
-	uchar pos = 30;
+	uchar pos = 80;
 	cvtColor(region1, region1G, CV_RGB2GRAY);
 	cvtColor(region2, region2G, CV_RGB2GRAY);
 	Mat diff;
@@ -47,10 +76,16 @@ Mat absDiff(const Mat &region1, const Mat &region2)
 			p = region1G.at<uchar>(i,j);
 			q = region2G.at<uchar>(i,j);
 
+			
+
 			if (fabs(p - q) < pos)
 				diff.at<uchar>(i, j) = 0;
 			else
 				diff.at<uchar>(i,j) =(uchar) fabs(p - q);
+			if (p == 0 && q == 0)
+				diff.at<uchar>(i, j) = 255;
+			if ((p == 0 && q != 0) || (p != 0 && q == 0))
+				diff.at<uchar>(i, j) = 100;
 		}
 	}
 	return diff;
@@ -92,14 +127,23 @@ vector<Point2f> findBestSeamMRF(
 	
 	////1.重叠区域坐标
 	edge = findRegion(img1T,img2T);
+	//edge.y = edge.y - 40;
 	//2.重叠区域差值图像
 	Mat region1 = img1T(Rect(Point(edge.x, 0), Point(edge.y, img1T.rows)));
 	Mat region2 = img2T(Rect(Point(edge.x, 0), Point(edge.y, img2T.rows)));
+	imshow("region1", region1);
+	imshow("region2", region2);
 	Mat diff = absDiff(region1, region2);
+	imshow("diff", diff);
+
 	//3.找到重叠区域的梯度图像
 	Mat grad1, grad2;
 	gradient(region1, grad1);
 	gradient(region2, grad2);
+	//Mat diffgrad = absDiff(grad1, grad2);
+	//imshow("diffgrad",diffgrad);
+	imshow("grad1", grad1);
+	imshow("grad2", grad2);
 	//4.初始化t-links和n-links
 	initLinks(g, alpha, beta, region1, region2, diff, grad1, grad2);
 	//5.MaxFlow/MinCut求解
@@ -135,9 +179,13 @@ void initLinks(
 	g->add_node(nodeNum);
 
 	for (int i = 0; i < rows; i++)
-	{
+	{		
 		double s2p=  alpha*grad1.at<uchar>(i, 0);
 		double p2t=  alpha*grad2.at<uchar>(i, cols-1);
+
+		/*double k = 1000;
+		s2p = k;
+		p2t = k;*/
 		g->add_tweights(i*cols, s2p, 0);
 		g->add_tweights(i*cols + cols - 1, 0, p2t);
 	}
@@ -149,11 +197,11 @@ void initLinks(
 	for (int i = 0; i < rows; i++)
 		for (int j = 0; j < cols; j++)			
 		{
-			//初始化t-links
-			//float s2p = alpha*grad1.at<uchar>(i, j);
-			//float p2t = alpha*grad2.at<uchar>(i, j);
+			////初始化t-links
+			//float s2p = -alpha*grad1.at<uchar>(i, j);
+			//float p2t = -alpha*grad2.at<uchar>(i, j);
 			//g->add_tweights(i*cols + j, s2p, p2t);
-			
+			//
 			//初始化n-links
 			double p,p1, p2;												//p点右边和下面两条边的初始流。
 			p = pow(diff.at<uchar>(i, j), 2.0) + beta*pow(grad1.at<uchar>(i, j) - grad2.at<uchar>(i, j), 2.0);
@@ -191,7 +239,7 @@ vector<Point2f> getSeamFromFlow(
 	for (int i = 0; i < rows; i++)
 		lable[i].resize(cols);
 
-
+	
 	//对每个节点进行标记
 	for (int i = 0; i < rows; i++)
 		for (int j = 0; j < cols; j++)
@@ -211,9 +259,7 @@ vector<Point2f> getSeamFromFlow(
 				((i - 1 > 0) && lable[i - 1][j] == 0) ||
 					((i + 1 < rows) && lable[i + 1][j] == 0) ||
 					((j - 1 > 0) && lable[i][j - 1] == 0) ||
-					((j + 1 < cols) && lable[i][j + 1] == 0))
-
-				)
+					((j + 1 < cols) && lable[i][j + 1] == 0)))
 				seamPoint.push_back(Point2f(i, j));
 		}
 
